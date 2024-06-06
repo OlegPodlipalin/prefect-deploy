@@ -1,0 +1,61 @@
+name: Deploy Prefect Server from Image to EC2
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [deploy]
+
+env:
+  SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+
+jobs:
+  # changes:
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     image_files: ${{ steps.changes.outputs.image_files }}
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+      
+  #     - name: Set up paths-filter
+  #       id: changes
+  #       uses: dorny/paths-filter@v3
+  #       with:
+  #         filters: |
+  #           image_files:
+  #             - 'Dockerfile'
+  #             - 'entrypoint.sh'
+  deploy:
+    # needs: changes
+    runs-on: ubuntu-latest
+    # if: needs.changes.outputs.image_files == 'false' || github.event_name != 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH with passphrase
+        run: |
+          ssh-agent -a $SSH_AUTH_SOCK
+          echo 'echo ${{ secrets.INSAIT_SSH_PASSPHRASE }}' > ~/.ssh_askpass && chmod +x ~/.ssh_askpass
+          echo "${{ secrets.INSAIT_EC2_SSH_KEY }}" | tr -d '\r' | DISPLAY=None SSH_ASKPASS=~/.ssh_askpass ssh-add -
+      
+      - name: Open SSH connection
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_SSH_USER }}@${{ secrets.EC2_SSH_HOST }} hostname
+
+      - name: Deploy to EC2
+        env:
+          DOCKER_HOST: "ssh://${{ secrets.EC2_SSH_USER }}@${{ secrets.EC2_SSH_HOST }}"
+          PREFECT_DOCKER_WORKPOOL: ${{ secrets.PREFECT_DOCKER_WORKPOOL }}
+          PREFECT_API_KEY: ${{ secrets.PREFECT_API_KEY }}
+          PARENT_DIR_PATH: ${{ secrets.DIR_PATH }}
+          HOST_DIR_PATH: ${{ secrets.HOST_PATH }}
+        run: |
+          cd $GITHUB_WORKSPACE
+          docker-compose -f ./docker-compose.yml up -d
+        
+      - name: Clean up SSH key
+        run: |
+          ssh-add -D
+          rm -rf ~/.ssh_askpass ~/.ssh/
