@@ -2,6 +2,7 @@ version: '3'
 services:
   prefect-server:
     image: ghcr.io/olegpodlipalin/server_image:latest
+    container_name: prefect-server
     ports:
       - "80:4200"
     volumes:
@@ -15,6 +16,12 @@ services:
       - PREFECT_DOCKER_WORKPOOL=${PREFECT_DOCKER_WORKPOOL}
     networks:
       - worker-pool
+    healthcheck:
+      test: prefect --version || exit 1
+      interval: 10s
+      timeout: 20s
+      retries: 5
+      start_period: 10s
   
   prefect-deploy-flows:
     image: ghcr.io/olegpodlipalin/prefect_flows:latest
@@ -27,6 +34,9 @@ services:
       - WORKPOOL_NAME=${PREFECT_DOCKER_WORKPOOL}
     networks:
       - worker-pool
+    depends_on:
+      prefect-server:
+        condition: service_healthy
 
 volumes:
   prefect:
