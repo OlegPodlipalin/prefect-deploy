@@ -53,7 +53,7 @@ jobs:
           HOST_DIR_PATH: ${{ secrets.HOST_PATH }}
         run: |
           cd $GITHUB_WORKSPACE
-          docker-compose -f ./docker-compose.yml up -d
+          docker compose -f ./docker-compose.yml up -d
         
       - name: Clean up SSH key
         run: |
